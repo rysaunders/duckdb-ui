@@ -65,6 +65,9 @@ private:
   void SetResponseEmptyResult(httplib::Response &res);
   void SetResponseErrorResult(httplib::Response &res, const std::string &error);
 
+  // Http client configuration
+  void ConfigureHttpClientProxy(httplib::Client &client);
+
   // Misc
   shared_ptr<DatabaseInstance> LockDatabaseInstance();
 

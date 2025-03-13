@@ -9,6 +9,7 @@
 #include "utils/serialization.hpp"
 #include "version.hpp"
 #include "watcher.hpp"
+#include <duckdb/common/http_util.hpp>
 #include <duckdb/common/serializer/binary_serializer.hpp>
 #include <duckdb/common/serializer/memory_stream.hpp>
 #include <duckdb/main/attached_database.hpp>
@@ -251,6 +252,9 @@ void HttpServer::HandleGet(const httplib::Request &req,
     client.enable_server_certificate_verification(false);
   }
 
+  // Configure proxy settings
+  ConfigureHttpClientProxy(client);
+
   // forward GET to remote URL
   auto result = client.Get(req.path, req.params, {{"User-Agent", user_agent}});
   if (!result) {
@@ -268,6 +272,28 @@ void HttpServer::HandleGet(const httplib::Request &req,
     // The UI looks for this to select the appropriate DuckDB mode (HTTP or
     // Wasm).
     res.set_header("X-DuckDB-UI-Extension-Version", UI_EXTENSION_VERSION);
+  }
+}
+
+void HttpServer::ConfigureHttpClientProxy(httplib::Client &client) {
+  auto db = LockDatabaseInstance();
+  if (!db) {
+    return;
+  }
+
+  // Get proxy settings from DuckDB configuration
+  auto &config = db->config;
+  if (!config.options.http_proxy.empty()) {
+    // Parse proxy host and port
+    idx_t port;
+    string host;
+    HTTPUtil::ParseHTTPProxyHost(config.options.http_proxy, host, port);
+    client.set_proxy(host, static_cast<int>(port));
+
+    // Set proxy authentication if provided
+    if (!config.options.http_proxy_username.empty() || !config.options.http_proxy_password.empty()) {
+      client.set_proxy_basic_auth(config.options.http_proxy_username, config.options.http_proxy_password);
+    }
   }
 }
 
